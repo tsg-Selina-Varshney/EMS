@@ -1,0 +1,19 @@
+@import "tailwindcss/base";
+
+@import "tailwindcss/components";
+
+@import "tailwindcss/utilities";
+
+.body {
+    background-image: url('C:\Users\73727\Desktop\EMS\frontend\public\Picture2.jpg');
+   
+  }
+
+.middle {
+    background-image: url('C:\Users\73727\Desktop\EMS\frontend\public\Picture4.jpg');
+    background-repeat: no-repeat; /* Prevent repeating the image */
+    background-size: cover; /* Make the image cover the entire element */
+    
+}
+
+  
