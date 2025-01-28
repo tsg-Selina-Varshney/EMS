@@ -8,13 +8,16 @@ import { useNavigate } from 'react-router-dom';
 
 function Login() {
 
-//Hooks:
+
   const [formData, setFormData] = useState({
     username: "",
     password: "",
   });
   const [passwordVisible, setPasswordVisible] = useState(false);
   const navigate = useNavigate();
+
+
+  
 
 //Functions:
   const handleChange = (e) => {
@@ -40,11 +43,26 @@ function Login() {
 
       });
       console.log("Response:", response.data);
+      
+      if (response.data.access_token) {
+        
+        localStorage.setItem("token", response.data.access_token);
+        localStorage.setItem("username", response.data.username);
+        localStorage.setItem("role", response.data.role);
+        localStorage.setItem("name", response.data.name);
+       
+        navigate("/dashboard");
+      }
 
-      const token = response.data.access_token;
-      localStorage.setItem("token", token);
+      else{
+        console.error("Authentication failed");
+      }
+  
 
-      navigate('/dashboard');
+      // const token = response.data.access_token;
+      // localStorage.setItem("token", token);
+
+      // navigate('/dashboard');
 
     }
     catch(error){
@@ -58,8 +76,10 @@ function Login() {
     setPasswordVisible((prevState) => !prevState);
   };
 
+  
 // Login Page
   return (
+
     <div className="body h-screen flex bg-cover bg-center"> 
     
       {/* Left Section */}
@@ -138,5 +158,7 @@ function Login() {
   
   );
 }
+
+
 
 export default Login;

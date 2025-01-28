@@ -3,22 +3,27 @@ import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 
 export default function Navbar() {
+
+  const getRole = localStorage.getItem("role");
+  const getName = localStorage.getItem("name");
+
+
   return (
     <nav className="bg-red-800 w-full">
       <div className="flex justify-between items-center h-24 px-4">
         
         <div className="flex space-x-4">
-          <a href="#" className="text-gray-300 hover:text-white px-3 py-2 text-2xl font-medium">
-            My Profile
-          </a>
-          <a href="#" className="text-gray-300 hover:text-white px-3 py-2 text-2xl font-medium">
+          <p className="text-white px-3 py-2 text-2xl font-medium">
+            Welcome {getRole} , {getName} 
+          </p>
+          {/* <a href="#" className="text-gray-300 hover:text-white px-3 py-2 text-2xl font-medium">
             Find Others
-          </a>
+          </a> */}
         </div>
 
         <div className="flex items-center">
           <Menu as="div" className="relative">
-          <MenuButton className="flex items-center justify-center rounded-full bg-white p-2 text-black hover:bg-gray-400">
+          <MenuButton className="flex items-center justify-center rounded-full bg-white p-2 text-black hover:bg-gray-400 mr-2">
               <span className="sr-only">Open menu</span>
               {/* Hamburger Icon */}
               <Bars3Icon className="h-6 w-6" aria-hidden="true" />
