@@ -3,6 +3,7 @@ import Navbar from './Navbar';
 import { PencilIcon, TrashIcon, PlusCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import axios from "axios";
 import { authService } from "./services/authService";
+import { useNavigate } from 'react-router-dom';
 
 
 
@@ -10,8 +11,19 @@ export default function Dashboard() {
   // const getRole = localStorage.getItem("role");
   // const getUsername = localStorage.getItem("username");
 
-  // Instead of using local Storage using AuthService
+
+
+  const navigate = useNavigate();
   const user = authService.getUser();
+
+  // Redirect to login if no user is found
+  useEffect(() => {
+    if (!user) {
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
+  // const user = authService.getUser();
+  
   const getRole = user?.role || "";
   const getUsername = user?.username || "";
 
