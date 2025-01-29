@@ -1,12 +1,18 @@
 
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { Bars3Icon } from '@heroicons/react/24/outline';
+import { authService } from "./services/authService";
 
 export default function Navbar() {
 
-  const getRole = localStorage.getItem("role");
-  const getName = localStorage.getItem("name");
+  // const getRole = localStorage.getItem("role");
+  // const getName = localStorage.getItem("name");
 
+    const user = authService.getUser();
+    const getRole = user?.role || "";
+    const getName = user?.name || "";
+
+    
 
   return (
     <nav className="bg-red-800 w-full">

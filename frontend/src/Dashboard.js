@@ -2,12 +2,19 @@ import React, { useState, useEffect } from "react";
 import Navbar from './Navbar';
 import { PencilIcon, TrashIcon, PlusCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import axios from "axios";
+import { authService } from "./services/authService";
 
 
 
 export default function Dashboard() {
-  const getRole = localStorage.getItem("role");
-  const getUsername = localStorage.getItem("username");
+  // const getRole = localStorage.getItem("role");
+  // const getUsername = localStorage.getItem("username");
+
+  // Instead of using local Storage using AuthService
+  const user = authService.getUser();
+  const getRole = user?.role || "";
+  const getUsername = user?.username || "";
+
   const [data, setData] = useState([]); 
   const [originalData, setOriginalData] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false); 
@@ -22,6 +29,9 @@ export default function Dashboard() {
   const [filterBy, setFilterBy] = useState("");//for filtering , selecting filtering by what
   const [selectedField, setSelectedField] = useState("");//selected option in that filter
   const [fieldOptions, setFieldOptions] = useState([]);//all options
+
+  
+
 
   const isLoading = async () => {
     
