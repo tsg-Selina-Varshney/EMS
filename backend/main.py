@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import List
 from bson import ObjectId
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -66,6 +67,25 @@ async def tableData():
     tdata = list(users_collection.find({},{"_id": 0}))
     return tdata
 
+@app.get("/unique/{column}")
+async def optionValues(column: str):
+   
+    if column not in ["department", "designation"]:
+        raise HTTPException(status_code=400, detail="Invalid column name")
+    
+    unique_values = users_collection.distinct(column) 
+    return {"column": column, "unique_values": unique_values}
+
+@app.get("/filter/{column}/{value}", response_model= List[DataModel])
+async def filter_data(column: str, value: str):
+    
+    if column not in ["department", "designation"]:
+        raise HTTPException(status_code=400, detail="Invalid column name")
+    
+    data = list(users_collection.find({column: value}, {"_id": 0}))
+    return data
+
+
 # @app.put("/update/{row_id}")
 # async def updateData(row_id: str, updatedData: DataModel):
 #     result = users_collection.update_one({"_id": row_id}, {"$set": updatedData.dict()})
@@ -74,25 +94,45 @@ async def tableData():
 #         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Row not found")
 #     return {"message": "Details Updated Successfully"}
 
+# def convert_to_datetime(value):
+    
+#     if isinstance(value, str):
+#         try:
+#             # Convert string in "YYYY-MM-DD" format to datetime
+#             return datetime.strptime(value, "%Y-%m-%d")
+#         except ValueError:
+#             raise ValueError("Invalid date format. Expected 'YYYY-MM-DD'.")
+#     elif isinstance(value, date):
+#         # Convert date object to datetime
+#         return datetime.combine(value, datetime.min.time())
+#     elif isinstance(value, datetime):
+#         # Already a datetime object
+#         return value
+#     else:
+#         raise TypeError("Unsupported type for date conversion. Must be str, date, or datetime.")
+    
+#     from datetime import datetime, date
+
 def convert_to_datetime(value):
-    """
-    Converts a string or date to a datetime object.
-    Ensures consistency when handling date fields.
-    """
+    
     if isinstance(value, str):
         try:
-            # Convert string in "YYYY-MM-DD" format to datetime
-            return datetime.strptime(value, "%Y-%m-%d")
+            # Validate and return as a string
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
         except ValueError:
             raise ValueError("Invalid date format. Expected 'YYYY-MM-DD'.")
+    
     elif isinstance(value, date):
-        # Convert date object to datetime
-        return datetime.combine(value, datetime.min.time())
+        # Convert date object to string
+        return value.strftime("%Y-%m-%d")
+
     elif isinstance(value, datetime):
-        # Already a datetime object
-        return value
+        # Convert datetime object to string
+        return value.strftime("%Y-%m-%d")
+
     else:
         raise TypeError("Unsupported type for date conversion. Must be str, date, or datetime.")
+
 
 @app.put("/update/{row_id}")
 async def update_row(row_id: str, updated_data: DataModel):

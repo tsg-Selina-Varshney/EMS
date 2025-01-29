@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Navbar from './Navbar';
-import { PencilIcon, TrashIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
+import { PencilIcon, TrashIcon, PlusCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import axios from "axios";
 
 
@@ -9,6 +9,7 @@ export default function Dashboard() {
   const getRole = localStorage.getItem("role");
   const getUsername = localStorage.getItem("username");
   const [data, setData] = useState([]); 
+  const [originalData, setOriginalData] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false); 
   const [editRow, setEditRow] = useState(null);
 
@@ -16,13 +17,18 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
 
   const [isEditMode, setIsEditMode] = useState(false); // To differentiate Add vs Edit
-
+  const [searchTerm, setSearchTerm] = useState(""); //for searching
+  
+  const [filterBy, setFilterBy] = useState("");//for filtering , selecting filtering by what
+  const [selectedField, setSelectedField] = useState("");//selected option in that filter
+  const [fieldOptions, setFieldOptions] = useState([]);//all options
 
   const isLoading = async () => {
     
     try{
       const result = await fetchTableData();
       setData(result);
+      setOriginalData(result);
     }catch(error){
       setError(error.message);
 
@@ -45,6 +51,7 @@ export default function Dashboard() {
   };
 
 
+
   useEffect(() => {
     isLoading();
 
@@ -65,6 +72,40 @@ export default function Dashboard() {
     setEditRow({ ...row }); 
     setIsModalOpen(true); 
   };
+
+  // const handleSearch = (e) => {
+  //   const value = e.target.value.toLowerCase();
+  //   setSearchTerm(value);
+
+  //   const newData = data.filter((row) =>
+  //     Object.values(row).some(
+  //       (val) => val.toString().toLowerCase().includes(value)
+  //     )
+  //   );
+  //   setFilteredData(newData);
+  
+  // };
+  
+  const handleSearch = (e) => {
+    const value = e.target.value.toLowerCase();
+    setSearchTerm(value);
+
+    if (value === "") {
+      setData(originalData); // Reset table when search is cleared
+      return;
+    }
+
+    // Filter original data for matching search results
+    const newData = originalData.filter((row) =>
+      Object.values(row).some(
+        (val) => val.toString().toLowerCase().includes(value)
+      )
+    );
+
+    setData(newData); // Update table with search results
+  };
+
+
 
 //   const handleDelete = async (row) => {
 //     setEditRow({ ...row }); 
@@ -182,25 +223,109 @@ const handleAddSave = async () => {
     }
   };
 
+  const handleFilter = async (column) => {
+    setFilterBy(column);
+    setSelectedField("");
+
+    try {
+      const response = await axios.get(`http://127.0.0.1:8000/unique/${column}`);
+      setFieldOptions(response.data.unique_values);
+    } catch (error) {
+      console.error("Error fetching unique values:", error);
+    }
+  };
+
+  const handleFieldSelection = async (value) => {
+    setSelectedField(value);
+
+    if (value === "") {
+      setData(originalData);
+      return;
+    }
+
+    try {
+      const response = await axios.get(`http://127.0.0.1:8000/filter/${filterBy}/${value}`);
+      setData(response.data);
+    } catch (error) {
+      console.error("Error filtering data:", error);
+    }
+  };
+
+  const removeFilters = () => {
+    setSearchTerm("");      
+    setFilterBy("");       
+    setSelectedField("");    
+    setData(originalData);   
+  };
+  
+
   
   return (
-    <div>
+    <div className="bg-gray-50">
 
         {/*Navbar*/}
         <div>
             <Navbar/>
         </div>
 
+      <div className="flex items-center">
+      <div className="flex items-center w-[600px] border-2 border-gray-500  hover:bg-gray-200 rounded-lg px-3 py-2 mt-6 ml-6 p-4">
+      {/* Search Input */}
+      <input
+        type="text"
+        placeholder="Search..."
+        className="flex-1 outline-none bg-transparent"
+        value={searchTerm}
+        onChange={handleSearch}
+        
+      />
+
+      {/* Search Icon on the Right */}
+      <MagnifyingGlassIcon className="h-5 w-5 text-gray-500" />
+    </div>
+
+    <div>
+      <select
+        onChange = {(e) => handleFilter(e.target.value)}
+        className="border-2 border-gray-500  hover:bg-gray-200 rounded-lg px-3 py-2 mt-6 ml-6 p-4"
+      >
+        <option value="">Filter by </option>
+        <option value="department">Filter by Department</option>
+        <option value="designation">Filter by Designation</option>
+      </select>
+
+      {filterBy && (
+        <select onChange={(e) => e.target.value? handleFieldSelection(e.target.value) : removeFilters()} className="border-2 border-gray-500  hover:bg-gray-200 rounded-lg px-3 py-2 mt-6 ml-6 p-4">
+          <option value=""> All</option>
+          {fieldOptions.map((option, index) => (
+            <option key={index} value={option}>{option}</option>
+          ))}
+        </select>
+      )}
+
+    </div>
+
+     {/*Add Button with visibility check*/}
+     {getRole === "Admin" && (
+          <div className="flex justify-end mt-6 pr-4 ml-6">
+          <button className="flex items-center px-3 py-2  bg-blue-600 text-white rounded-md hover:bg-blue-700" onClick={handleAddClick}>
+            <PlusCircleIcon className="h-5 w-6 mr-2" />
+            Add Employee
+          </button>
+          </div>
+        )}
+    
+    </div>
 
         {/*Add Button with visibility check*/}
-        {getRole === "Admin" && (
+        {/* {getRole === "Admin" && (
           <div className="flex justify-end mt-4 pr-4 mr-2">
           <button className="flex items-center px-4 py-2  bg-blue-600 text-white text-xl rounded-md hover:bg-blue-700" onClick={handleAddClick}>
             <PlusCircleIcon className="h-6 w-6 mr-2" />
             Add Employee
           </button>
           </div>
-        )}
+        )} */}
 
 
         {/* Table */}
@@ -219,13 +344,25 @@ const handleAddSave = async () => {
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Email</th>
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Phone Number</th>
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Start Date</th>
+                    {(getRole === "Admin") && (
+                        <>
+                        <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Role</th>
+                        </>
+                      )}
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Actions</th>
                   </tr>
                 </thead>
 
                 {/* Table Body */}
+
                 <tbody>
-                  {data.map((row, index) => (
+
+                
+
+                {data.length > 0 ? (
+                  data.map((row, index) => (
+
+                    
                     <tr key={index} className="odd:bg-gray-50 even:bg-white text-lg">
                       <td className="border border-gray-300 px-4 py-2">{row.username}</td>
                       <td className="border border-gray-300 px-4 py-2">{row.name}</td>
@@ -234,13 +371,18 @@ const handleAddSave = async () => {
                       <td className="border border-gray-300 px-4 py-2">{row.email}</td>
                       <td className="border border-gray-300 px-4 py-2">{row.phone}</td>
                       <td className="border border-gray-300 px-4 py-2">{row.sdate}</td>
-                      <td className="border border-gray-300 px-4 py-2 flex space-x-2">
+                      {(getRole === "Admin") && (
+                        <>
+                        <td className="border border-gray-300 px-4 py-2">{row.role}</td>
+                        </>
+                      )}
+                      <td className="px-4 py-2 flex space-x-2">
                       
                       {(getRole === "Admin" || row.username === getUsername) && (
                         <>
                         {/* Edit Button */}
                         <button
-                          className="p-2 text-blue-500 hover:bg-gray-100 rounded-md"
+                          className="p-2 text-blue-500 hover:bg-gray-100 rounded-md border-2 border-black"
                           onClick={() => handleEditClick(row)}
                         >
                           <PencilIcon className="h-5 w-5" />
@@ -251,7 +393,7 @@ const handleAddSave = async () => {
                       {getRole === "Admin" && (
                         <>
                         {/* Delete Button */}
-                        <button className="p-2 text-red-500 hover:bg-gray-100 rounded-md" 
+                        <button className="p-2 text-red-500 hover:bg-gray-100 rounded-md border-2 border-black" 
                           onClick={() => handleDelete(row)}
                         >
                           <TrashIcon className="h-5 w-5" />
@@ -260,7 +402,16 @@ const handleAddSave = async () => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="text-center p-4">
+                      No results found
+                    </td>
+                  </tr>
+                )}
+
+
                 </tbody>
               </table>
 
