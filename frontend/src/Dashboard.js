@@ -66,33 +66,66 @@ export default function Dashboard() {
     setIsModalOpen(true); 
   };
 
-  const handleDelete = async (row) => {
-    setEditRow({ ...row }); 
-    console.log("editRow before deletion:", editRow); // Debugging statement
-    if (!editRow || !editRow.username) {
+//   const handleDelete = async (row) => {
+//     setEditRow({ ...row }); 
+//     console.log("editRow before deletion:", editRow); // Debugging statement
+//     if (!editRow || !editRow.username) {
+//     alert("No row selected for deletion.");
+//     return;
+//     }
+//     if (window.confirm("Are you sure you want to delete this row?")) {
+//       try{
+//         console.log(editRow);
+//         const response = await axios.delete(
+//           `http://127.0.0.1:8000/delete/${editRow.username}`,
+//           editRow
+//         );
+//         alert(response.data.message); 
+        
+//         const updatedData = data.map((row) =>
+//           row === editRow ? { ...editRow } : row
+//         );
+//         setData(updatedData);
+//         setIsModalOpen(false); 
+//   } catch (error) {
+//     console.error("Error deleting data:", error);
+//     alert("Failed to delete data.");
+//   }
+//   }
+// };
+
+const handleDelete = async (row) => {
+  console.log("Row selected for deletion:", row); // Debugging statement
+
+  if (!row || !row.username) {
     alert("No row selected for deletion.");
     return;
-    }
-    if (window.confirm("Are you sure you want to delete this row?")) {
-      try{
-        console.log(editRow);
-        const response = await axios.delete(
-          `http://127.0.0.1:8000/delete/${editRow.username}`,
-          editRow
-        );
-        alert(response.data.message); 
-        
-        // const updatedData = data.map((row) =>
-        //   row === editRow ? { ...editRow } : row
-        // );
-        // setData(updatedData);
-        // setIsModalOpen(false); 
-  } catch (error) {
-    console.error("Error deleting data:", error);
-    alert("Failed to delete data.");
   }
+
+  if (window.confirm("Are you sure you want to delete this row?")) {
+    try {
+      console.log("Deleting row:", row);
+      
+      // Send DELETE request with row.username
+      const response = await axios.delete(
+        `http://127.0.0.1:8000/delete/${row.username}`
+      );
+
+      alert(response.data.message);
+
+      // Update local state by removing the deleted row
+      const updatedData = data.filter((item) => item.username !== row.username);
+      setData(updatedData);
+
+      // Close modal if needed
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error deleting data:", error);
+      alert("Failed to delete data.");
+    }
   }
 };
+
 
 const handleAddSave = async () => {
   // Print the editRow variable to the console
