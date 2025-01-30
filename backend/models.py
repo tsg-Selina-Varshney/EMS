@@ -24,3 +24,9 @@ class DataModel(BaseModel):
     phone: int
     sdate: str
     role: str
+
+class AuditModel(BaseModel):
+    timestamp: datetime
+    username: str
+    userchanged: str
+    action: str

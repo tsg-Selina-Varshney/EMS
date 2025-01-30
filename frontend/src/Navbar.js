@@ -22,9 +22,17 @@ export default function Navbar() {
           <p className="text-white px-3 py-2 text-2xl font-medium">
             Welcome {getRole} , {getName} 
           </p>
-          {/* <a href="#" className="text-gray-300 hover:text-white px-3 py-2 text-2xl font-medium">
-            Find Others
-          </a> */}
+          {getRole === "Admin" && (
+            <>
+            <a href="/dashboard" className="text-gray-300 hover:text-white px-6 py-2 text-2xl font-medium">
+            Dashboard
+            </a>
+          <a href="/audit" className="text-gray-300 hover:text-white px-6 py-2 text-2xl font-medium">
+            Check Audit Logs
+          </a>
+          </>
+          )}
+          
         </div>
 
         <div className="flex items-center">

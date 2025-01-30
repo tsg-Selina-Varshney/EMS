@@ -1,12 +1,13 @@
 from datetime import date, datetime
 from typing import List
+from urllib import request
 from bson import ObjectId
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Header, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import validator
 from auth import hash_password, verify_password, create_access_token, decode_access_token
-from database import users_collection
-from models import UserLogin, Token,DataModel
+from database import users_collection, audit_collection
+from models import AuditModel, UserLogin, Token,DataModel
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -65,6 +66,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @app.get("/tabledata")
 async def tableData():
     tdata = list(users_collection.find({},{"_id": 0}))
+    return tdata
+
+@app.get("/audittabledata")
+async def tableData():
+    tdata = list(audit_collection.find({},{"_id": 0}))
     return tdata
 
 @app.get("/unique/{column}")
@@ -134,45 +140,81 @@ def convert_to_datetime(value):
         raise TypeError("Unsupported type for date conversion. Must be str, date, or datetime.")
 
 
-@app.put("/update/{row_id}")
-async def update_row(row_id: str, updated_data: DataModel):
+# @app.put("/update/{row_id}")
+# async def update_row(row_id: str, updated_data: DataModel):
     
-    # Pydantic model to dictionary and excluding unset fields
+#     # Pydantic model to dictionary and excluding unset fields
    
+#     update_dict = updated_data.dict(exclude_unset=True)
+  
+
+#     if "sdate" in update_dict:
+#         update_dict["sdate"] = convert_to_datetime(update_dict["sdate"])
+
+#     # database update
+#     result = users_collection.update_one(
+#         {"username": row_id}, 
+#         {"$set": update_dict}  
+#     )
+
+#     if result.matched_count == 0:
+#         raise HTTPException(status_code=404, detail="Row not found")
+
+#     return {"message": "Row updated successfully"}
+
+@app.put("/update/{row_id}")
+async def update_row(row_id: str, updated_data: DataModel, current: str = Header(...)):
+    # Fetch the original row before updating
+    original_row = users_collection.find_one({"username": row_id})
+
+    if not original_row:
+        raise HTTPException(status_code=404, detail="Row not found")
+
+    # Convert Pydantic model to dictionary, excluding unset fields
     update_dict = updated_data.dict(exclude_unset=True)
-    # if "sdate" in update_dict:
-    #     #`date` to `datetime` for MongoDB compatibility
-    #     update_dict["sdate"] = update_dict["sdate"].strftime("%Y-%m-%d")
 
-    if "sdate" in update_dict:
-        update_dict["sdate"] = convert_to_datetime(update_dict["sdate"])
+    # Identify changed fields and format as a string
+    changes_made = []
+    for key, new_value in update_dict.items():
+        old_value = original_row.get(key, None)
+        if old_value != new_value:  # Only store fields that have changed
+            changes_made.append(f"{key} from '{old_value}' to '{new_value}'")
 
-    # if "sdate" in update_dict:
-    # # Convert `sdate` if it's a string or validate it
-    #     if isinstance(update_dict["sdate"], str):
-    #         try:
-    #             update_dict["sdate"] = datetime.strptime(update_dict["sdate"], "%Y-%m-%d")
-    #         except ValueError:
-    #             raise ValueError("Invalid date format for 'sdate'. Expected 'YYYY-MM-DD'.")
+    if not changes_made:  
+        return {"message": "No changes detected"}
 
-    # database update
+    # Update the row
     result = users_collection.update_one(
-        {"username": row_id}, 
-        {"$set": update_dict}  
+        {"username": row_id},
+        {"$set": update_dict}
     )
 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
 
-    return {"message": "Row updated successfully"}
+    # Prepare change log with formatted action
+    action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
+
+    change_log = AuditModel(
+        timestamp=datetime.utcnow(),
+        username= f"User {current}",  
+        userchanged=f"User {row_id}",  
+        action=action_string  
+    )
+
+    # Insert the change log into the `changes_collection`
+    audit_collection.insert_one(change_log.dict())
+
+    return {"message": "Row updated successfully", "changes": changes_made}
 
 def get_user_by_username(username: str):
     user = users_collection.find_one({"username": username})  
     return user
 
 @app.post("/add", status_code=status.HTTP_201_CREATED)
-async def create_user(user: DataModel):
-    
+async def create_user(user: DataModel, current: str = Header(...)):
+    print("API Endpoint Hit!")  
+    print("Received Headers:", current) 
     # Check if the username already exists
     existing_user = get_user_by_username(user.username)
     if existing_user:
@@ -210,6 +252,16 @@ async def create_user(user: DataModel):
     }
     
     users_collection.insert_one(new_user)
+
+    audit_log = AuditModel(
+        timestamp=datetime.utcnow(), 
+        username=f"User {current}",  
+        userchanged= f"User {user_data["username"]}",  
+        action=f"Added User {user_data['username']}"
+    )
+
+    # Insert the change log into the changes collection
+    audit_collection.insert_one(audit_log.dict())
     
     return {"username": user.username, "role": user.role}
 
