@@ -275,7 +275,8 @@ async def create_user(user: DataModel, current: str = Header(...)):
 
 
 @app.delete("/delete/{row_id}")
-async def delete_row(row_id: str):
+async def delete_row(row_id: str, current: str = Header(...)):
+
     result = users_collection.delete_one(
         {"username": row_id}
     )
@@ -283,7 +284,16 @@ async def delete_row(row_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
     
+    audit_log = AuditModel(
+        timestamp=datetime.utcnow(), 
+        username=f"User {current}",  
+        userchanged= f"User {row_id}",  
+        action=f"Deleted User {row_id}"
+    )
+    audit_collection.insert_one(audit_log.dict())
+    
     return {"message": "Row deleted successfully"}
+
 
 
 

@@ -187,7 +187,12 @@ const handleDelete = async (row) => {
       
       
       const response = await axios.delete(
-        `http://127.0.0.1:8000/delete/${row.username}`
+        `http://127.0.0.1:8000/delete/${row.username}`, {
+          headers: {
+            "Content-Type": "application/json",
+            "current": getUsername
+          },
+        }
       );
 
       alert(response.data.message);
