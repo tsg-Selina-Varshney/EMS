@@ -14,7 +14,7 @@ app = FastAPI()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-#To allow cors middleware to connect with frontend, without this cors error
+# To allow cors middleware to connect with frontend, without this cors error
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"], 
@@ -24,18 +24,20 @@ app.add_middleware(
 )
 
 @app.post("/token", response_model=Token)
+# OAuthPasswordRequestForm is a dependency that automatically extracts username and password from the request. 
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Fetch the user from the database
+    # Finds the user in the database by username
     user = users_collection.find_one({"username": form_data.username})
     print("Fetched user:", user)  
 
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
+    # Plain password which the user inputs
     print("Plain password:", form_data.password)  
+    # Hashed password stored in the database
     print("Stored hashed password:", user["password"])  
 
-    # Verify the password
+    # Call verify_password in auth.py
     if not verify_password(form_data.password, user["password"]):
         print("Password verification failed")  
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -90,6 +92,12 @@ async def filter_data(column: str, value: str):
     
     data = list(users_collection.find({column: value}, {"_id": 0}))
     return data
+
+@app.get("/sort",response_model= List[DataModel])
+async def sort_data(column: str, desc: bool = False):
+    sort_order = -1 if desc else 1
+    users = list(users_collection.find().sort(column, sort_order))
+    return users
 
 
 # @app.put("/update/{row_id}")
@@ -276,5 +284,7 @@ async def delete_row(row_id: str):
         raise HTTPException(status_code=404, detail="Row not found")
     
     return {"message": "Row deleted successfully"}
+
+
 
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Navbar from './Navbar';
-import { PencilIcon, TrashIcon, PlusCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { PencilIcon, TrashIcon, PlusCircleIcon, MagnifyingGlassIcon, ArrowDownIcon, ArrowUpIcon } from "@heroicons/react/24/outline";
 import axios from "axios";
 import { authService } from "./services/authService";
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ export default function Dashboard() {
       navigate("/", { replace: true });
     }
   }, [user, navigate]);
-  // const user = authService.getUser();
+  
   
   const getRole = user?.role || "";
   const getUsername = user?.username || "";
@@ -42,6 +42,9 @@ export default function Dashboard() {
   const [selectedField, setSelectedField] = useState("");//selected option in that filter
   const [fieldOptions, setFieldOptions] = useState([]);//all options
 
+  const [ascending, setAscending] = useState({ username: true, name: true, sdate: true});
+  
+
   
 
 
@@ -60,17 +63,30 @@ export default function Dashboard() {
   };
 
 
-  const fetchTableData = async () => {
+  // const fetchTableData = async (column = "username", desc = false)  => {
+  //   try {
+  //     // const response = await axios.get("http://127.0.0.1:8000/tabledata");
+  //     const response = await axios.get(`http://127.0.0.1:8000/sort?column=${column}&desc=${desc}`);
+  //     return response.data;
+
+  //   }catch(error){
+  //     console.error("Error fetching table data", error)
+  //     throw error;
+
+  //   }
+  // };
+
+  const fetchTableData = async (column = null, desc = false) => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/tabledata");
+      let url = column ? `http://127.0.0.1:8000/sort?column=${column}&desc=${desc}` : "http://127.0.0.1:8000/tabledata"; 
+      const response = await axios.get(url);
       return response.data;
-
-    }catch(error){
-      console.error("Error fetching table data", error)
+    } catch (error) {
+      console.error("Error fetching table data", error);
       throw error;
-
     }
   };
+  
 
 
 
@@ -169,7 +185,7 @@ const handleDelete = async (row) => {
     try {
       console.log("Deleting row:", row);
       
-      // Send DELETE request with row.username
+      
       const response = await axios.delete(
         `http://127.0.0.1:8000/delete/${row.username}`
       );
@@ -180,7 +196,7 @@ const handleDelete = async (row) => {
       const updatedData = data.filter((item) => item.username !== row.username);
       setData(updatedData);
 
-      // Close modal if needed
+      
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error deleting data:", error);
@@ -195,7 +211,7 @@ const handleAddSave = async () => {
   console.log("editRow data:", editRow);
 
   try {
-    // Send the POST request using Axios
+    
     const response = await axios.post("http://127.0.0.1:8000/add", editRow, {
       headers: {
         "Content-Type": "application/json",
@@ -203,15 +219,15 @@ const handleAddSave = async () => {
       },
     });
 
-    // Print response from the backend
+    
     console.log("Response from backend:", response.data);
     alert("User added successfully!");
   } catch (error) {
-    // Handle different cases of errors
+    
     if (error.response) {
       // Backend responded with an error (e.g., 400 Bad Request)
       console.error("Error response:", error.response.data);
-      alert("Error: " + JSON.stringify(error.response.data)); // Or extract specific fields
+      alert("Error: " + JSON.stringify(error.response.data)); 
     } else if (error.request) {
       // Request was made but no response received
       console.error("Error request:", error.request);
@@ -285,6 +301,34 @@ const handleAddSave = async () => {
     setSelectedField("");    
     setData(originalData);   
   };
+
+
+  const handleSort = async (column) => {
+    try {
+      setLoading(true);
+  
+      const currentOrder = ascending[column] ?? true; 
+      const newOrder = !currentOrder; 
+  
+      
+      const sortedData = await fetchTableData(column, newOrder);
+  
+      setData(sortedData); 
+  
+      setAscending((prev) => ({
+        ...prev,
+        [column]: newOrder,
+      }));
+    } catch (error) {
+      console.error("Error fetching sorted data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  
+  
+  
   
 
   
@@ -345,17 +389,6 @@ const handleAddSave = async () => {
     
     </div>
 
-        {/*Add Button with visibility check*/}
-        {/* {getRole === "Admin" && (
-          <div className="flex justify-end mt-4 pr-4 mr-2">
-          <button className="flex items-center px-4 py-2  bg-blue-600 text-white text-xl rounded-md hover:bg-blue-700" onClick={handleAddClick}>
-            <PlusCircleIcon className="h-6 w-6 mr-2" />
-            Add Employee
-          </button>
-          </div>
-        )} */}
-
-
         {/* Table */}
         <div className="p-6 bg-gray-50 min-h-screen">
     
@@ -365,13 +398,61 @@ const handleAddSave = async () => {
                 {/* Table Header */}
                 <thead className="bg-gray-100 text-xl">
                   <tr>
-                    <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">EID</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Name</th>
+                  
+                    <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">
+                      <div class="flex items-center justify-between w-full">
+                        <span>EID</span>
+                        {ascending["username"] === true ? (
+                          <ArrowUpIcon
+                          className="w-5 h-5 text-gray-500 cursor-pointer"
+                          onClick={() => handleSort("username")}
+                        />
+                        ) : (
+                          <ArrowDownIcon
+                          className="w-5 h-5 text-gray-500 cursor-pointer"
+                          onClick={() => handleSort("username")}
+                        />
+                       )}
+                      </div>
+                    {/* EID */}
+                    </th>
+                  
+                    <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">
+                      <div class="flex items-center justify-between w-full">
+                          <span>Name</span>
+                          {ascending["name"] === true ? (
+                            <ArrowUpIcon
+                            className="w-5 h-5 text-gray-500 cursor-pointer"
+                            onClick={() => handleSort("name")}
+                          />
+                          ) : (
+                            <ArrowDownIcon
+                            className="w-5 h-5 text-gray-500 cursor-pointer"
+                            onClick={() => handleSort("name")}
+                          />
+                        )}
+                        </div>
+                    </th>
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Department</th>
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Designation</th>
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Email</th>
                     <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Phone Number</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Start Date</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">
+                      <div class="flex items-center justify-between w-full">
+                            <span>Start Date</span>
+                            {ascending["sdate"] === true ? (
+                              <ArrowUpIcon
+                              className="w-5 h-5 text-gray-500 cursor-pointer"
+                              onClick={() => handleSort("sdate")}
+                            />
+                            ) : (
+                              <ArrowDownIcon
+                              className="w-5 h-5 text-gray-500 cursor-pointer"
+                              onClick={() => handleSort("sdate")}
+                            />
+                          )}
+                          </div>
+                    </th>
                     {(getRole === "Admin") && (
                         <>
                         <th className="border border-gray-300 px-4 py-2 text-left text-gray-700 font-bold">Role</th>
