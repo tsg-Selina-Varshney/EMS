@@ -1,19 +1,19 @@
 from datetime import date, datetime
+import json
 from typing import List
-from urllib import request
-from bson import ObjectId
 from fastapi import FastAPI, Depends, HTTPException, Header, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import validator
 from auth import hash_password, verify_password, create_access_token, decode_access_token
-from database import users_collection, audit_collection
-from models import AuditModel, UserLogin, Token,DataModel
+from database import users_collection, audit_collection, redis_client
+from models import AuditModel,Token,DataModel
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+#CORS SETTING
 # To allow cors middleware to connect with frontend, without this cors error
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
+#API FOR LOGIN
 @app.post("/token", response_model=Token)
 # OAuthPasswordRequestForm is a dependency that automatically extracts username and password from the request. 
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -55,78 +56,117 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     return {"access_token": access_token, "token_type": "bearer", "username": payload["username"], "role": payload["role"], "name": payload["name"]}
     
+#REFRESH CACHE FUNCTION
+async def refresh_cache(cache_key):
+    try:
+        # Delete the existing cache
+        await redis_client.delete(cache_key)
+        print(f"Cache key '{cache_key}' deleted.")
 
+        # Fetch fresh data from the database
+        tdata = list(users_collection.find({}, {"_id": 0}))
 
-# @app.get("/protected")
-# def protected(token: str = Depends(oauth2_scheme)):
-#     print("Access Token:", token) 
-#     payload = decode_access_token(token)
-#     if not payload:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-#     return {"username": payload["sub"], "role": payload["role"]}
+        # Store the new data in Redis
+        await redis_client.set(cache_key, json.dumps(tdata))
+        print(f"Cache key '{cache_key}' refreshed with new data.")
 
+        return {"message": "Cache refreshed successfully."}
+
+    except Exception as e:
+        print("Error refreshing cache:", e)
+        return {"error": str(e)}
+    
+
+#API TO GET TABLE DATA WITHOUT SORTING
 @app.get("/tabledata")
 async def tableData():
-    tdata = list(users_collection.find({},{"_id": 0}))
+    # Caching
+    # cache_key = "all_items"
+
+    cached_items = await redis_client.get("all_items")
+    # Cache Hit
+    if cached_items:
+        print("Source: Redis")
+        return json.loads(cached_items)
+    # Cache Miss
+    
+    # find and list everything except the id field.
+    tdata = list(users_collection.find({},{"_id": 0})) 
+
+    # Store in redis
+    await redis_client.set("all_items", json.dumps(tdata))
+    print("/tabledata Source: DB and data put in redis")
     return tdata
 
+
+#API TO GET AUDIT TABLE DATA
 @app.get("/audittabledata")
 async def tableData():
+    # Caching
+    cache_key = "audit_items"
+    cached_items = await redis_client.get(cache_key)
+    # Cache Hit
+    if cached_items:
+        print("Source: Redis")
+        return json.loads(cached_items)
+    # Cache Miss
     tdata = list(audit_collection.find({},{"_id": 0}))
+    # Since timestamp is not json serializable convert it to string before storing.
+    for t in tdata:
+        if "timestamp" in t:
+            t["timestamp"] = t["timestamp"].isoformat()
+    # Store in redis
+    await redis_client.set(cache_key, json.dumps(tdata))
+    print("Source: DB and data put in redis")
     return tdata
 
-@app.get("/unique/{column}")
-async def optionValues(column: str):
-   
+
+#APIS FOR FILTERING:
+
+#COMMMON FUNCTION
+def check_column(column):
     if column not in ["department", "designation"]:
         raise HTTPException(status_code=400, detail="Invalid column name")
     
+    
+#API TO GET THE UNIQUE VALUES AS PER THE COLUMN SELECTED
+@app.get("/unique/{column}")
+async def optionValues(column: str):
+    
+    check_column(column)
+  
     unique_values = users_collection.distinct(column) 
+
     return {"column": column, "unique_values": unique_values}
 
+
+#API TO GET DATA AS PER COLUMN AND OPTION SELECTED
 @app.get("/filter/{column}/{value}", response_model= List[DataModel])
 async def filter_data(column: str, value: str):
     
-    if column not in ["department", "designation"]:
-        raise HTTPException(status_code=400, detail="Invalid column name")
-    
+    check_column(column)
+
     data = list(users_collection.find({column: value}, {"_id": 0}))
+
     return data
 
+#API TO SORT TABLEDATA
 @app.get("/sort",response_model= List[DataModel])
 async def sort_data(column: str, desc: bool = False):
     sort_order = -1 if desc else 1
+    # Caching
+    cache_key = "all_items"
+    cached_items = await redis_client.get(cache_key)
+
+    if cached_items:
+        data_list = json.loads(cached_items)
+        sorted_data = sorted(data_list, key=lambda x: x[column], reverse=desc)
+        return sorted_data
+    
     users = list(users_collection.find().sort(column, sort_order))
     return users
 
-
-# @app.put("/update/{row_id}")
-# async def updateData(row_id: str, updatedData: DataModel):
-#     result = users_collection.update_one({"_id": row_id}, {"$set": updatedData.dict()})
-
-#     if result.matched_count == 0:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Row not found")
-#     return {"message": "Details Updated Successfully"}
-
-# def convert_to_datetime(value):
-    
-#     if isinstance(value, str):
-#         try:
-#             # Convert string in "YYYY-MM-DD" format to datetime
-#             return datetime.strptime(value, "%Y-%m-%d")
-#         except ValueError:
-#             raise ValueError("Invalid date format. Expected 'YYYY-MM-DD'.")
-#     elif isinstance(value, date):
-#         # Convert date object to datetime
-#         return datetime.combine(value, datetime.min.time())
-#     elif isinstance(value, datetime):
-#         # Already a datetime object
-#         return value
-#     else:
-#         raise TypeError("Unsupported type for date conversion. Must be str, date, or datetime.")
-    
-#     from datetime import datetime, date
-
+#FOR COMMON DATETIME CONVERSION
 def convert_to_datetime(value):
     
     if isinstance(value, str):
@@ -148,28 +188,7 @@ def convert_to_datetime(value):
         raise TypeError("Unsupported type for date conversion. Must be str, date, or datetime.")
 
 
-# @app.put("/update/{row_id}")
-# async def update_row(row_id: str, updated_data: DataModel):
-    
-#     # Pydantic model to dictionary and excluding unset fields
-   
-#     update_dict = updated_data.dict(exclude_unset=True)
-  
-
-#     if "sdate" in update_dict:
-#         update_dict["sdate"] = convert_to_datetime(update_dict["sdate"])
-
-#     # database update
-#     result = users_collection.update_one(
-#         {"username": row_id}, 
-#         {"$set": update_dict}  
-#     )
-
-#     if result.matched_count == 0:
-#         raise HTTPException(status_code=404, detail="Row not found")
-
-#     return {"message": "Row updated successfully"}
-
+#API TO EDIT
 @app.put("/update/{row_id}")
 async def update_row(row_id: str, updated_data: DataModel, current: str = Header(...)):
     # Fetch the original row before updating
@@ -199,7 +218,10 @@ async def update_row(row_id: str, updated_data: DataModel, current: str = Header
 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
-
+    
+    
+    await refresh_cache("all_items") 
+    
     # Prepare change log with formatted action
     action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
 
@@ -212,6 +234,7 @@ async def update_row(row_id: str, updated_data: DataModel, current: str = Header
 
     # Insert the change log into the `changes_collection`
     audit_collection.insert_one(change_log.dict())
+    await refresh_cache("audit_items") 
 
     return {"message": "Row updated successfully", "changes": changes_made}
 
@@ -219,6 +242,8 @@ def get_user_by_username(username: str):
     user = users_collection.find_one({"username": username})  
     return user
 
+
+#API TO ADD
 @app.post("/add", status_code=status.HTTP_201_CREATED)
 async def create_user(user: DataModel, current: str = Header(...)):
     print("API Endpoint Hit!")  
@@ -239,9 +264,6 @@ async def create_user(user: DataModel, current: str = Header(...)):
 
     user_data = user.dict()
 
-    # if "sdate" in user_data and isinstance(user_data["sdate"], date):
-    #     user_data["sdate"] = datetime.combine(user_data["sdate"], datetime.min.time())
-
     if "sdate" in user_data:
         user_data["sdate"] = convert_to_datetime(user_data["sdate"])
 
@@ -260,6 +282,7 @@ async def create_user(user: DataModel, current: str = Header(...)):
     }
     
     users_collection.insert_one(new_user)
+    await refresh_cache("all_items") 
 
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -270,19 +293,23 @@ async def create_user(user: DataModel, current: str = Header(...)):
 
     # Insert the change log into the changes collection
     audit_collection.insert_one(audit_log.dict())
+    await refresh_cache("audit_items") 
     
     return {"username": user.username, "role": user.role}
 
 
+#API TO DELETE
 @app.delete("/delete/{row_id}")
 async def delete_row(row_id: str, current: str = Header(...)):
 
     result = users_collection.delete_one(
         {"username": row_id}
     )
-
+    
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
+    
+    await refresh_cache("all_items") 
     
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -291,8 +318,22 @@ async def delete_row(row_id: str, current: str = Header(...)):
         action=f"Deleted User {row_id}"
     )
     audit_collection.insert_one(audit_log.dict())
+    await refresh_cache("audit_items") 
     
     return {"message": "Row deleted successfully"}
+
+
+#API TO TEST REDIS CONNECTION
+@app.get("/test_redis")
+async def test_redis():
+    """Test if Redis connection is working"""
+    try:
+        await redis_client.set("test_key", "Redis is connected!", ex=10)
+        test_value = await redis_client.get("test_key")
+        return {"message": test_value}
+    except Exception as e:
+        return {"error": str(e)}
+    
 
 
 

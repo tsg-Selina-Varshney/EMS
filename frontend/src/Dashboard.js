@@ -48,19 +48,19 @@ export default function Dashboard() {
   
 
 
-  const isLoading = async () => {
+  // const isLoading = async () => {
     
-    try{
-      const result = await fetchTableData();
-      setData(result);
-      setOriginalData(result);
-    }catch(error){
-      setError(error.message);
+  //   try{
+  //     const result = await fetchTableData();
+  //     setData(result);
+  //     setOriginalData(result);
+  //   }catch(error){
+  //     setError(error.message);
 
-    }finally{
-      setLoading(false);
-    }
-  };
+  //   }finally{
+  //     setLoading(false);
+  //   }
+  // };
 
 
   // const fetchTableData = async (column = "username", desc = false)  => {
@@ -87,13 +87,27 @@ export default function Dashboard() {
     }
   };
   
-
-
-
   useEffect(() => {
-    isLoading();
-
+    const fetchData = async () => {
+      try {
+        const result = await fetchTableData();
+        setData(result);
+        setOriginalData(result);
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchData();
   }, []);
+  
+
+  // useEffect(() => {
+  //   isLoading();
+
+  // }, []);
 
 
   if (loading) return <p>Loading...</p>;
@@ -200,7 +214,7 @@ const handleDelete = async (row) => {
       // Update local state by removing the deleted row
       const updatedData = data.filter((item) => item.username !== row.username);
       setData(updatedData);
-
+      
       
       setIsModalOpen(false);
     } catch (error) {
