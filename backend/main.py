@@ -5,7 +5,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Query, Request, sta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import validator
 from auth import hash_password, verify_password, create_access_token, decode_access_token
-from database import users_collection, audit_collection, redis_client
+from database import users_collection, audit_collection, redis_client, departments_collection, designations_collection
 from models import AuditModel,Token,DataModel
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -56,13 +56,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     return {"access_token": access_token, "token_type": "bearer", "username": payload["username"], "role": payload["role"], "name":payload["name"]}
 
-#API TO GET NAME ON THE NAVBAR
-@app.get("/navbar/{username}")
-async def get_name(username: str) :
-    data = users_collection.find_one({"username": username}, {"_id": 0, "name": 1})
-    return data
-
-    
+ 
 #REFRESH CACHE FUNCTION
 async def refresh_cache(cache_key,collection):
     try:
@@ -137,12 +131,26 @@ def check_column(column):
     
     
 #API TO GET THE UNIQUE VALUES AS PER THE COLUMN SELECTED
+# @app.get("/unique/{column}")
+# async def optionValues(column: str):
+    
+#     check_column(column)
+  
+#     unique_values = users_collection.distinct(column) 
+
+#     return {"column": column, "unique_values": unique_values}
+
 @app.get("/unique/{column}")
 async def optionValues(column: str):
     
     check_column(column)
+
+    if(column == "department"):
+        collection = departments_collection
+    else:
+        collection = designations_collection
   
-    unique_values = users_collection.distinct(column) 
+    unique_values = collection.distinct(column) 
 
     return {"column": column, "unique_values": unique_values}
 

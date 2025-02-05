@@ -11,6 +11,8 @@ client = MongoClient(MONGO_URI)
 db = client.EMS_Data
 users_collection = db["Users"]
 audit_collection = db["AuditLogs"]
+departments_collection = db["Departments"]
+designations_collection = db["Designations"]
 
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = os.getenv("REDIS_PORT")

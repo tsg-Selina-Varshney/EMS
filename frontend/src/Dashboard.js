@@ -47,6 +47,31 @@ export default function Dashboard() {
     sdate: true,
   });
 
+  //form errors
+  const [formErrors, setFormErrors] = useState({});
+
+  const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState([]);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const fetchDropdownValues = async (column) => {
+    setLoading(true);
+    try {
+      const response = await axios.get(
+        `http://127.0.0.1:8000/unique/${column}`
+      );
+      if (column === "department") {
+        setDepartments(response.data.unique_values);
+      } else if (column === "designation") {
+        setDesignations(response.data.unique_values);
+      }
+    } catch (error) {
+      console.error(`Error fetching ${column} data:`, error);
+    }
+    setLoading(false);
+  };
+
   //FETCHING TABLE DATA
   const fetchTableData = async (column = null, desc = false) => {
     try {
@@ -76,6 +101,8 @@ export default function Dashboard() {
     };
 
     fetchData();
+    fetchDropdownValues("department");
+    fetchDropdownValues("designation");
   }, []);
 
   // REDIRECT TO LOGIN IF NO USER FOUND
@@ -101,6 +128,7 @@ export default function Dashboard() {
   const handleAddClick = () => {
     setIsEditMode(false); //Add Mode
     setEditRow(null); // Reset
+    setFormErrors({});
     setIsModalOpen(true);
   };
 
@@ -172,6 +200,11 @@ export default function Dashboard() {
   //ADDING NEW USER
   const handleAddSave = async (event) => {
     if (event) event.preventDefault();
+
+    if (!validateForm(isEditMode)) {
+      return;
+    }
+
     console.log("editRow data:", editRow);
 
     try {
@@ -211,6 +244,10 @@ export default function Dashboard() {
   //EDITING EXISTING USER
   const handleSave = async (event) => {
     if (event) event.preventDefault();
+
+    if (!validateForm(isEditMode)) {
+      return;
+    }
 
     try {
       console.log("Updating data for:", editRow);
@@ -314,6 +351,83 @@ export default function Dashboard() {
     }
   };
 
+  //FORM HANDLE CHANGE
+  const handleChange = (e) => {
+    const { id, value } = e.target; 
+    setEditRow((prev) => ({
+      ...prev,
+      [id]: value, 
+    }));
+  };
+
+  //FORM VALIDATIONS
+  const validateForm = (isEditMode) => {
+    let validationErrors = {};
+
+    if (!editRow || typeof editRow !== "object") {
+      validationErrors.username = "All form data is missing.";
+      setFormErrors(validationErrors);
+      return false;
+    }
+    if (!isEditMode) {
+      // EID (Username) Required, 5-digit numeric only
+      if (!editRow.username) {
+        validationErrors.username = "EID is required.";
+      } else if (!/^\d{5}$/.test(editRow.username)) {
+        validationErrors.username = "EID must be exactly 5 numeric digits.";
+      }
+
+      // Password - Required, Strong (8+ chars, uppercase, lowercase, number, special char)
+      if (!editRow.password) {
+        validationErrors.password = "Password is required.";
+      } else if (
+        !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
+          editRow.password
+        )
+      ) {
+        validationErrors.password =
+          "Password must be at least 8 characters, include one uppercase letter, one lowercase letter, one number, and one special character.";
+      }
+      //Role
+      if (!editRow.role) {
+        validationErrors.role = "Role is required.";
+      }
+    }
+
+    // Name Required
+    if (!editRow.name) {
+      validationErrors.name = "Name is required.";
+    }
+    //Department Required
+    if (!editRow.department) {
+      validationErrors.department = "Department selection is required.";
+    }
+    //Designation Required
+    if (!editRow.designation) {
+      validationErrors.designation = "Designation selection is required.";
+    }
+
+    // Email - Required, Valid Format
+    if (!editRow.email) {
+      validationErrors.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editRow.email)) {
+      validationErrors.email = "Invalid email format.";
+    }
+    //Phone required - 10 numbers
+    if (!editRow.phone) {
+      validationErrors.phone = "Phone Number is required.";
+    } else if (!/^\d{10}$/.test(editRow.phone)) {
+      validationErrors.phone = "Phone Number must be 10 numeric digits.";
+    }
+    //Start Date required
+    if (!editRow.sdate) {
+      validationErrors.sdate = "Start Date is required.";
+    }
+
+    setFormErrors(validationErrors);
+    return Object.keys(validationErrors).length === 0;
+  };
+
   //MAIN BODY
   return (
     <div className="bg-gray-50">
@@ -356,7 +470,7 @@ export default function Dashboard() {
               }
               className="border-2 border-gray-500  hover:bg-gray-200 rounded-lg px-3 py-2 mt-6 ml-6 p-4"
             >
-              <option value={selectedField}> All</option>
+              <option value=""> All</option>
               {fieldOptions.map((option, index) => (
                 <option key={index} value={option}>
                   {option}
@@ -547,7 +661,7 @@ export default function Dashboard() {
               </h2>
 
               {/*Form*/}
-              <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+              <form className="space-y-5">
                 {/* Username Field */}
                 {!isEditMode && (
                   <div className="mb-4">
@@ -561,14 +675,13 @@ export default function Dashboard() {
                       type="text"
                       id="username"
                       value={editRow?.username || ""}
-                      onChange={(e) =>
-                        setEditRow((prev) => ({
-                          ...prev,
-                          username: e.target.value,
-                        }))
-                      }
+                      maxLength={5}
+                      onChange={handleChange}
                       className="mt-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg"
                     />
+                    {formErrors.username && (
+                      <p className="text-red-500 mt-2">{formErrors.username}</p>
+                    )}
                   </div>
                 )}
 
@@ -586,14 +699,12 @@ export default function Dashboard() {
                       type="text"
                       id="password"
                       value={editRow?.password || ""}
-                      onChange={(e) =>
-                        setEditRow((prev) => ({
-                          ...prev,
-                          password: e.target.value,
-                        }))
-                      }
+                      onChange={handleChange}
                       className="mt-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg"
                     />
+                    {formErrors.password && (
+                      <p className="text-red-500 mt-2">{formErrors.password}</p>
+                    )}
                   </div>
                 )}
 
@@ -610,11 +721,12 @@ export default function Dashboard() {
                     type="text"
                     id="name"
                     value={editRow?.name || ""}
-                    onChange={(e) =>
-                      setEditRow((prev) => ({ ...prev, name: e.target.value }))
-                    }
+                    onChange={handleChange}
                     className="mt-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg"
                   />
+                  {formErrors.name && (
+                    <p className="text-red-500 mt-2">{formErrors.name}</p>
+                  )}
                 </div>
 
                 {/* Department Field*/}
@@ -626,18 +738,22 @@ export default function Dashboard() {
                   >
                     Department
                   </label>
-                  <input
-                    type="text"
+                  <select
                     id="department"
                     value={editRow?.department || ""}
-                    onChange={(e) =>
-                      setEditRow((prev) => ({
-                        ...prev,
-                        department: e.target.value,
-                      }))
-                    }
-                    className="mt-2 text-lg block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  />
+                    onChange={handleChange}
+                    className="mt-2 block w-full border-gray-500 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg pt-3 pb-3"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept, index) => (
+                      <option key={index} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.department && (
+                    <p className="text-red-500 mt-2">{formErrors.department}</p>
+                  )}
                 </div>
 
                 {/* Designation Field*/}
@@ -649,18 +765,24 @@ export default function Dashboard() {
                   >
                     Designation
                   </label>
-                  <input
-                    type="text"
+                  <select
                     id="designation"
                     value={editRow?.designation || ""}
-                    onChange={(e) =>
-                      setEditRow((prev) => ({
-                        ...prev,
-                        designation: e.target.value,
-                      }))
-                    }
-                    className="mt-2 text-lg block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  />
+                    onChange={handleChange}
+                    className="mt-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg pt-3 pb-3"
+                  >
+                    <option value="">Select Designation</option>
+                    {designations.map((desig, index) => (
+                      <option key={index} value={desig}>
+                        {desig}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.designation && (
+                    <p className="text-red-500 mt-2">
+                      {formErrors.designation}
+                    </p>
+                  )}
                 </div>
 
                 {/* Email Field */}
@@ -676,11 +798,12 @@ export default function Dashboard() {
                     type="email"
                     id="email"
                     value={editRow?.email || ""}
-                    onChange={(e) =>
-                      setEditRow((prev) => ({ ...prev, email: e.target.value }))
-                    }
+                    onChange={handleChange}
                     className="mt-2 text-lg block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                   />
+                  {formErrors.email && (
+                    <p className="text-red-500 mt-2">{formErrors.email}</p>
+                  )}
                 </div>
 
                 {/* Phone Number */}
@@ -695,15 +818,14 @@ export default function Dashboard() {
                   <input
                     type="tel"
                     id="phone"
-                    pattern="[0-9]{10}"
-                    title="Please enter a 10-digit phone number"
-                    required
+                    maxLength={10}
                     value={editRow?.phone || ""}
-                    onChange={(e) =>
-                      setEditRow((prev) => ({ ...prev, phone: e.target.value }))
-                    }
+                    onChange={handleChange}
                     className="mt-2 text-lg block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                   />
+                  {formErrors.phone && (
+                    <p className="text-red-500 mt-2">{formErrors.phone}</p>
+                  )}
                 </div>
 
                 {/* Start date Field*/}
@@ -717,12 +839,14 @@ export default function Dashboard() {
                   <input
                     type="date"
                     id="sdate"
+                    max={today}
                     value={editRow?.sdate || ""}
-                    onChange={(e) =>
-                      setEditRow((prev) => ({ ...prev, sdate: e.target.value }))
-                    }
+                    onChange={handleChange}
                     className="custom-date mt-2 text-lg block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                   />
+                  {formErrors.sdate && (
+                    <p className="text-red-500 mt-2">{formErrors.sdate}</p>
+                  )}
                 </div>
 
                 {/* Role Field*/}
@@ -734,18 +858,21 @@ export default function Dashboard() {
                     >
                       Role
                     </label>
-                    <input
-                      type="text"
+                    <select
                       id="role"
                       value={editRow?.role || ""}
-                      onChange={(e) =>
-                        setEditRow((prev) => ({
-                          ...prev,
-                          role: e.target.value,
-                        }))
-                      }
-                      className="mt-2 text-lg block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    />
+                      onChange={handleChange}
+                      className="mt-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-lg pt-3 pb-3"
+                    >
+                      <option value="">Select Role</option>
+                      <option value="Admin">Admin</option>
+                      <option value="Employee">Employee</option>
+                    
+                    </select>
+                    {formErrors.role && (
+                    <p className="text-red-500 mt-2">{formErrors.role}</p>
+                  )}
+                 
                   </div>
                 )}
 
