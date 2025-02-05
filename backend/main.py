@@ -1,7 +1,7 @@
 from datetime import date, datetime
 import json
 from typing import List
-from fastapi import FastAPI, Depends, HTTPException, Header, Request, status
+from fastapi import FastAPI, Depends, HTTPException, Header, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import validator
 from auth import hash_password, verify_password, create_access_token, decode_access_token
@@ -54,17 +54,24 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     
-    return {"access_token": access_token, "token_type": "bearer", "username": payload["username"], "role": payload["role"], "name": payload["name"]}
+    return {"access_token": access_token, "token_type": "bearer", "username": payload["username"], "role": payload["role"], "name":payload["name"]}
+
+#API TO GET NAME ON THE NAVBAR
+@app.get("/navbar/{username}")
+async def get_name(username: str) :
+    data = users_collection.find_one({"username": username}, {"_id": 0, "name": 1})
+    return data
+
     
 #REFRESH CACHE FUNCTION
-async def refresh_cache(cache_key):
+async def refresh_cache(cache_key,collection):
     try:
         # Delete the existing cache
         await redis_client.delete(cache_key)
         print(f"Cache key '{cache_key}' deleted.")
 
         # Fetch fresh data from the database
-        tdata = list(users_collection.find({}, {"_id": 0}))
+        tdata = list(collection.find({}, {"_id": 0}))
 
         # Store the new data in Redis
         await redis_client.set(cache_key, json.dumps(tdata))
@@ -101,7 +108,7 @@ async def tableData():
 
 #API TO GET AUDIT TABLE DATA
 @app.get("/audittabledata")
-async def tableData():
+async def audittableData():
     # Caching
     cache_key = "audit_items"
     cached_items = await redis_client.get(cache_key)
@@ -189,11 +196,62 @@ def convert_to_datetime(value):
 
 
 #API TO EDIT
+# @app.put("/update/{row_id}")
+# async def update_row(row_id: str, updated_data: DataModel, current: str = Header(...)):
+#     # Fetch the original row before updating
+#     original_row = users_collection.find_one({"username": row_id})
+#     print("in update");
+#     if not original_row:
+#         raise HTTPException(status_code=404, detail="Row not found")
+
+#     # Convert Pydantic model to dictionary, excluding unset fields
+#     update_dict = updated_data.dict(exclude_unset=True)
+
+#     # Identify changed fields and format as a string
+#     changes_made = []
+#     for key, new_value in update_dict.items():
+#         old_value = original_row.get(key, None)
+#         if old_value != new_value:  # Only store fields that have changed
+#             changes_made.append(f"{key} from '{old_value}' to '{new_value}'")
+
+#     if not changes_made:  
+#         return {"message": "No changes detected"}
+
+#     # Update the row
+#     result = users_collection.update_one(
+#         {"username": row_id},
+#         {"$set": update_dict}
+#     )
+
+#     if result.matched_count == 0:
+#         raise HTTPException(status_code=404, detail="Row not found")
+    
+    
+#     await refresh_cache("all_items") 
+    
+#     # Prepare change log with formatted action
+#     action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
+
+#     change_log = AuditModel(
+#         timestamp=datetime.utcnow(),
+#         username= f"User {current}",  
+#         userchanged=f"User {row_id}",  
+#         action=action_string  
+#     )
+
+#     # Insert the change log into the `changes_collection`
+#     audit_collection.insert_one(change_log.dict())
+#     await refresh_cache("audit_items") 
+#     print("Return message");
+#     return {"message": "Row updated successfully", "changes": changes_made}
+
+
+
 @app.put("/update/{row_id}")
-async def update_row(row_id: str, updated_data: DataModel, current: str = Header(...)):
+async def update_user(row_id: str, updated_data: DataModel, current: str = Query(...)):
     # Fetch the original row before updating
     original_row = users_collection.find_one({"username": row_id})
-
+    print("in update");
     if not original_row:
         raise HTTPException(status_code=404, detail="Row not found")
 
@@ -220,7 +278,7 @@ async def update_row(row_id: str, updated_data: DataModel, current: str = Header
         raise HTTPException(status_code=404, detail="Row not found")
     
     
-    await refresh_cache("all_items") 
+    await refresh_cache("all_items",users_collection) 
     
     # Prepare change log with formatted action
     action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
@@ -234,8 +292,10 @@ async def update_row(row_id: str, updated_data: DataModel, current: str = Header
 
     # Insert the change log into the `changes_collection`
     audit_collection.insert_one(change_log.dict())
-    await refresh_cache("audit_items") 
 
+    await refresh_cache("audit_items",audit_collection) 
+
+    print("Return message")
     return {"message": "Row updated successfully", "changes": changes_made}
 
 def get_user_by_username(username: str):
@@ -282,7 +342,8 @@ async def create_user(user: DataModel, current: str = Header(...)):
     }
     
     users_collection.insert_one(new_user)
-    await refresh_cache("all_items") 
+    new_user.pop("_id", None)
+    await refresh_cache("all_items",users_collection) 
 
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -293,9 +354,9 @@ async def create_user(user: DataModel, current: str = Header(...)):
 
     # Insert the change log into the changes collection
     audit_collection.insert_one(audit_log.dict())
-    await refresh_cache("audit_items") 
-    
-    return {"username": user.username, "role": user.role}
+    await refresh_cache("audit_items",audit_collection) 
+    return {"message": "User added successfully!", "newUser": new_user}
+    # return {"username": user.username, "role": user.role}
 
 
 #API TO DELETE
@@ -309,7 +370,7 @@ async def delete_row(row_id: str, current: str = Header(...)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
     
-    await refresh_cache("all_items") 
+    await refresh_cache("all_items",users_collection) 
     
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -318,7 +379,7 @@ async def delete_row(row_id: str, current: str = Header(...)):
         action=f"Deleted User {row_id}"
     )
     audit_collection.insert_one(audit_log.dict())
-    await refresh_cache("audit_items") 
+    await refresh_cache("audit_items",audit_collection) 
     
     return {"message": "Row deleted successfully"}
 

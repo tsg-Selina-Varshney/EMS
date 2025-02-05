@@ -1,17 +1,21 @@
-
+import React, { useState, useEffect} from "react";
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import { authService } from "./services/authService";
 
 export default function Navbar() {
 
-  // const getRole = localStorage.getItem("role");
-  // const getName = localStorage.getItem("name");
-
-    const user = authService.getUser();
+    const [user, setUser] = useState(authService.getUser());
     const getRole = user?.role || "";
     const getName = user?.name || "";
 
+    useEffect(() => {
+      const subscription = authService.user$.subscribe((updatedUser) => {
+        setUser(updatedUser); 
+      });
+  
+      return () => subscription.unsubscribe();
+    }, []);
     
 
   return (
@@ -20,7 +24,7 @@ export default function Navbar() {
         
         <div className="flex space-x-4">
           <p className="text-white px-3 py-2 text-2xl font-medium">
-            Welcome {getRole} , {getName} 
+            Welcome {getRole} , {getName || "Guest"} 
           </p>
           {getRole === "Admin" && (
             <>
