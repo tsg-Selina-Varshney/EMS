@@ -58,68 +58,134 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
  
 #REFRESH CACHE FUNCTION
-async def refresh_cache(cache_key,collection):
-    try:
-        # Delete the existing cache
-        await redis_client.delete(cache_key)
-        print(f"Cache key '{cache_key}' deleted.")
+# async def refresh_cache(cache_key,collection):
+#     try:
+#         # Delete the existing cache
+#         await redis_client.delete(cache_key)
+#         print(f"Cache key '{cache_key}' deleted.")
 
-        # Fetch fresh data from the database
-        tdata = list(collection.find({}, {"_id": 0}))
+#         # Fetch fresh data from the database
+#         tdata = list(collection.find({}, {"_id": 0}))
 
-        # Store the new data in Redis
-        await redis_client.set(cache_key, json.dumps(tdata))
-        print(f"Cache key '{cache_key}' refreshed with new data.")
+#         # Store the new data in Redis
+#         await redis_client.set(cache_key, json.dumps(tdata))
+#         print(f"Cache key '{cache_key}' refreshed with new data.")
 
-        return {"message": "Cache refreshed successfully."}
+#         return {"message": "Cache refreshed successfully."}
 
-    except Exception as e:
-        print("Error refreshing cache:", e)
-        return {"error": str(e)}
+#     except Exception as e:
+#         print("Error refreshing cache:", e)
+#         return {"error": str(e)}
     
 
 #API TO GET TABLE DATA WITHOUT SORTING
 @app.get("/tabledata")
-async def tableData():
-    # Caching
-    # cache_key = "all_items"
+# async def tableData():
 
-    cached_items = await redis_client.get("all_items")
-    # Cache Hit
-    if cached_items:
-        print("Source: Redis")
-        return json.loads(cached_items)
-    # Cache Miss
+#     cache_key = "all_items"
+#     order_key = f"{cache_key}:order"  # Separate list to store order
+#     cache_exists = await redis_client.exists(cache_key)
     
-    # find and list everything except the id field.
-    tdata = list(users_collection.find({},{"_id": 0})) 
+#     # Cache Hit
+#     if cache_exists:
+#         print("Source: Redis")
+        
+#         # Fetch ordered list of keys
+#         ordered_keys = await redis_client.lrange(order_key, 0, -1)
 
-    # Store in redis
-    await redis_client.set("all_items", json.dumps(tdata))
-    print("/tabledata Source: DB and data put in redis")
-    return tdata
+#         # Fetch users in the correct order
+#         users = []
+#         for key in ordered_keys:
+#             user_data = await redis_client.hget(cache_key, key)
+#             if user_data:
+#                 users.append(json.loads(user_data))
+
+#         return users  # Return users in the correct MongoDB order
+
+#     # Cache Miss → Fetch from MongoDB
+#     tdata = list(users_collection.find({}, {"_id": 0}))  # Exclude `_id`
+
+#     # Store each user in Redis Hash and track order
+#     for user in tdata:
+#         username = user.get("username")  # Assuming `username` is unique
+#         if username:
+#             await redis_client.hset(cache_key, username, json.dumps(user))  # Store each user in Hash
+#             await redis_client.rpush(order_key, username)  # Maintain order in a Redis list
+
+#     return tdata 
+
+async def tableData():
+    
+    cache_key = "all_items"
+    cache_exists = await redis_client.exists(cache_key)
+    
+    #Cache Hit
+    if cache_exists:
+        print("Source: Redis")
+        
+        # Fetch all users from Redis Hash
+        cached_items = await redis_client.hgetall(cache_key)
+        
+        # Convert from Redis byte format to a proper dictionary
+        formatted_items = {k: json.loads(v) for k, v in cached_items.items()}
+
+        
+        return list(formatted_items.values())  # Return users as a list
+
+    # Cache Miss → Fetch from MongoDB
+    tdata = list(users_collection.find({}, {"_id": 0}))  # Exclude _id
+
+    # Store each user in Redis Hash
+    for user in tdata:
+        username = user.get("username")  # Assuming username is unique
+        if username:
+            await redis_client.hset(cache_key, username, json.dumps(user))  # Store each user in Hash
+
+    return tdata 
 
 
 #API TO GET AUDIT TABLE DATA
 @app.get("/audittabledata")
 async def audittableData():
-    # Caching
-    cache_key = "audit_items"
-    cached_items = await redis_client.get(cache_key)
-    # Cache Hit
-    if cached_items:
-        print("Source: Redis")
-        return json.loads(cached_items)
-    # Cache Miss
-    tdata = list(audit_collection.find({},{"_id": 0}))
-    # Since timestamp is not json serializable convert it to string before storing.
+    # """Fetch audit items from Redis while maintaining MongoDB order"""
+
+    # cache_key = "audit_items"  # Redis hash key storing audit records
+    # order_key = f"{cache_key}:order"  # Separate list to store order
+    # cache_exists = await redis_client.exists(cache_key)
+
+    # # Cache Hit
+    # if cache_exists:
+    #     print("Source: Redis")
+        
+    #     # Fetch ordered list of keys
+    #     ordered_keys = await redis_client.lrange(order_key, 0, -1)
+
+    #     # Fetch audit records in the correct order
+    #     audit_records = []
+    #     for key in ordered_keys:
+    #         audit_data = await redis_client.hget(cache_key, key)
+    #         if audit_data:
+    #             audit_records.append(json.loads(audit_data))
+
+    #     return audit_records  # Return records in MongoDB order
+
+    # Cache Miss → Fetch from MongoDB
+    tdata = list(audit_collection.find({}, {"_id": 0}))  # Exclude `_id`
+
+    # Convert timestamp to ISO format before storing
     for t in tdata:
-        if "timestamp" in t:
+        if "timestamp" in t and isinstance(t["timestamp"], datetime):
             t["timestamp"] = t["timestamp"].isoformat()
-    # Store in redis
-    await redis_client.set(cache_key, json.dumps(tdata))
-    print("Source: DB and data put in redis")
+
+    # # Store each audit record in Redis Hash and track order
+    # for audit in tdata:
+    #     audit_id = str(audit.get("audit_id", audit.get("timestamp", "unknown")))  # Use audit_id or timestamp as key
+    #     await redis_client.hset(cache_key, audit_id, json.dumps(audit))  # Store each audit in Hash
+    #     await redis_client.rpush(order_key, audit_id)  # Maintain order in a Redis list
+
+    print("Source: DB always")
     return tdata
+
 
 
 #APIS FOR FILTERING:
@@ -168,18 +234,22 @@ async def filter_data(column: str, value: str):
 #API TO SORT TABLEDATA
 @app.get("/sort",response_model= List[DataModel])
 async def sort_data(column: str, desc: bool = False):
-    sort_order = -1 if desc else 1
-    # Caching
     cache_key = "all_items"
-    cached_items = await redis_client.get(cache_key)
 
-    if cached_items:
-        data_list = json.loads(cached_items)
-        sorted_data = sorted(data_list, key=lambda x: x[column], reverse=desc)
-        return sorted_data
-    
-    users = list(users_collection.find().sort(column, sort_order))
-    return users
+    # Fetch all data from Redis Hash
+    cached_items = await redis_client.hgetall(cache_key)
+
+    if not cached_items:
+        print("No data found in Redis cache.")
+        return []
+
+    # Convert Redis Hash response from bytes/strings to dictionaries
+    data_list = [json.loads(user_data) for user_data in cached_items.values()]
+
+    # Sort the data based on the given column
+    sorted_data = sorted(data_list, key=lambda x: x.get(column, ""), reverse=desc)
+
+    return sorted_data
 
 #FOR COMMON DATETIME CONVERSION
 def convert_to_datetime(value):
@@ -203,63 +273,101 @@ def convert_to_datetime(value):
         raise TypeError("Unsupported type for date conversion. Must be str, date, or datetime.")
 
 
+
+#UPDATE CACHE
+async def update_user_in_hash_cache(cache_key: str, row_id: str, update_dict: dict):
+
+    # Fetch the existing user data from the Redis Hash
+    existing_data = await redis_client.hget(cache_key, row_id)
+
+    if not existing_data:
+        print(f"User {row_id} not found in {cache_key}")
+        return
+
+    # Convert JSON string to a dictionary
+    user_data = json.loads(existing_data)
+
+    # Update only the provided fields
+    user_data.update(update_dict)
+
+    # Save the updated user data back into the hash
+    await redis_client.hset(cache_key, row_id, json.dumps(user_data))
+
+    # Maintain order: Ensure the user exists in the ordered list
+    list_key = f"{cache_key}:order"
+
+    existing_order = await redis_client.lrange(list_key, 0, -1)
+
+    if row_id not in existing_order:
+        await redis_client.rpush(list_key, row_id)  # Add to order list if not present
+
+    print(f"User {row_id} updated in {cache_key} and order preserved")
+
+
+
+# DATETIME SERIALIZATION
+def serialize_datetime(obj):
+    """Helper function to convert datetime to string before JSON serialization"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()  # Converts datetime to a string
+    raise TypeError("Type not serializable")
+
+
+#ADD TO CACHE
+async def add_new_user_to_redis(cache_key: str, new_user: dict):
+    """Add a new user to Redis Hash and maintain insertion order"""
+
+    order_key = f"{cache_key}:order"  # Separate list to store order
+
+    # Ensure the user has a unique identifier (assumed to be `username`)
+    username = new_user.get("username")
+    if not username:
+        print("Error: User data must contain a 'username' field")
+        return
+
+    # Convert new user data to JSON format (for Redis storage)
+    user_json = json.dumps(new_user, default=serialize_datetime)
+
+    # Store the new user in the Redis Hash
+    await redis_client.hset(cache_key, username, user_json)
+
+    # Maintain order: Add user to the ordered list if not already present
+    existing_order = await redis_client.lrange(order_key, 0, -1)
+
+    if username not in existing_order:
+        await redis_client.rpush(order_key, username)  # Append to order list
+
+    print(f"New user {username} added to {cache_key} and order maintained")
+
+
+# DELETE FROM CACHE
+async def delete_user_from_redis(cache_key: str, username: str):
+    """Delete a user from Redis Hash and remove from order list"""
+
+    order_key = f"{cache_key}:order"  # Separate list to track order
+
+    # Check if the user exists
+    user_exists = await redis_client.hexists(cache_key, username)
+    if not user_exists:
+        print(f"User {username} not found in {cache_key}")
+        return
+
+    # Delete the user from Redis Hash
+    await redis_client.hdel(cache_key, username)
+
+    # Remove the username from the order list
+    await redis_client.lrem(order_key, 0, username)
+
+    print(f"User {username} deleted from {cache_key} and order list updated")
+
+
+
 #API TO EDIT
-# @app.put("/update/{row_id}")
-# async def update_row(row_id: str, updated_data: DataModel, current: str = Header(...)):
-#     # Fetch the original row before updating
-#     original_row = users_collection.find_one({"username": row_id})
-#     print("in update");
-#     if not original_row:
-#         raise HTTPException(status_code=404, detail="Row not found")
-
-#     # Convert Pydantic model to dictionary, excluding unset fields
-#     update_dict = updated_data.dict(exclude_unset=True)
-
-#     # Identify changed fields and format as a string
-#     changes_made = []
-#     for key, new_value in update_dict.items():
-#         old_value = original_row.get(key, None)
-#         if old_value != new_value:  # Only store fields that have changed
-#             changes_made.append(f"{key} from '{old_value}' to '{new_value}'")
-
-#     if not changes_made:  
-#         return {"message": "No changes detected"}
-
-#     # Update the row
-#     result = users_collection.update_one(
-#         {"username": row_id},
-#         {"$set": update_dict}
-#     )
-
-#     if result.matched_count == 0:
-#         raise HTTPException(status_code=404, detail="Row not found")
-    
-    
-#     await refresh_cache("all_items") 
-    
-#     # Prepare change log with formatted action
-#     action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
-
-#     change_log = AuditModel(
-#         timestamp=datetime.utcnow(),
-#         username= f"User {current}",  
-#         userchanged=f"User {row_id}",  
-#         action=action_string  
-#     )
-
-#     # Insert the change log into the `changes_collection`
-#     audit_collection.insert_one(change_log.dict())
-#     await refresh_cache("audit_items") 
-#     print("Return message");
-#     return {"message": "Row updated successfully", "changes": changes_made}
-
-
-
 @app.put("/update/{row_id}")
 async def update_user(row_id: str, updated_data: DataModel, current: str = Query(...)):
     # Fetch the original row before updating
     original_row = users_collection.find_one({"username": row_id})
-    print("in update");
+    print("in update")
     if not original_row:
         raise HTTPException(status_code=404, detail="Row not found")
 
@@ -282,11 +390,13 @@ async def update_user(row_id: str, updated_data: DataModel, current: str = Query
         {"$set": update_dict}
     )
 
+
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
     
-    
-    await refresh_cache("all_items",users_collection) 
+    # Update the cache
+    await update_user_in_hash_cache("all_items", row_id, update_dict)
+    # await refresh_cache("all_items",users_collection) 
     
     # Prepare change log with formatted action
     action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
@@ -301,7 +411,9 @@ async def update_user(row_id: str, updated_data: DataModel, current: str = Query
     # Insert the change log into the `changes_collection`
     audit_collection.insert_one(change_log.dict())
 
-    await refresh_cache("audit_items",audit_collection) 
+    # Update Cache
+    # await add_new_user_to_redis("audit_items", change_log.dict())
+    # await refresh_cache("audit_items",audit_collection) 
 
     print("Return message")
     return {"message": "Row updated successfully", "changes": changes_made}
@@ -351,7 +463,10 @@ async def create_user(user: DataModel, current: str = Header(...)):
     
     users_collection.insert_one(new_user)
     new_user.pop("_id", None)
-    await refresh_cache("all_items",users_collection) 
+
+    # ADD TO CACHE
+    await add_new_user_to_redis("all_items", new_user)
+    # await refresh_cache("all_items",users_collection) 
 
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -362,7 +477,11 @@ async def create_user(user: DataModel, current: str = Header(...)):
 
     # Insert the change log into the changes collection
     audit_collection.insert_one(audit_log.dict())
-    await refresh_cache("audit_items",audit_collection) 
+
+    #update cache
+    # await refresh_cache("audit_items",audit_collection) 
+    # await add_new_user_to_redis("audit_items", audit_log.dict())
+
     return {"message": "User added successfully!", "newUser": new_user}
     # return {"username": user.username, "role": user.role}
 
@@ -378,7 +497,8 @@ async def delete_row(row_id: str, current: str = Header(...)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
     
-    await refresh_cache("all_items",users_collection) 
+    await delete_user_from_redis("all_items",row_id)
+    # await refresh_cache("all_items",users_collection) 
     
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -387,7 +507,9 @@ async def delete_row(row_id: str, current: str = Header(...)):
         action=f"Deleted User {row_id}"
     )
     audit_collection.insert_one(audit_log.dict())
-    await refresh_cache("audit_items",audit_collection) 
+
+    # await add_new_user_to_redis("audit_items", audit_log.dict())
+    # await refresh_cache("audit_items",audit_collection) 
     
     return {"message": "Row deleted successfully"}
 

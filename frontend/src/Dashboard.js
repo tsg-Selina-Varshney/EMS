@@ -17,10 +17,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const user = authService.getUser();
   // const [user, setUser] = useState(authService.getUser());
-
   const getRole = user?.role || "";
   const getUsername = user?.username || "";
-
   // States for tableData and Filtering
   const [data, setData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
@@ -29,30 +27,24 @@ export default function Dashboard() {
   const [editRow, setEditRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   // To differentiate Add vs Edit
   const [isEditMode, setIsEditMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
   //for filtering , selecting filtering by what
   const [filterBy, setFilterBy] = useState("");
   //selected option in that filter
   const [selectedField, setSelectedField] = useState("");
   //all options
   const [fieldOptions, setFieldOptions] = useState([]);
-
   const [ascending, setAscending] = useState({
     username: true,
     name: true,
     sdate: true,
   });
-
-  //form errors
+  //form states
   const [formErrors, setFormErrors] = useState({});
-
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
-
   const today = new Date().toISOString().split("T")[0];
 
   const fetchDropdownValues = async (column) => {
@@ -292,14 +284,11 @@ export default function Dashboard() {
   const handleFilter = async (column) => {
     setFilterBy(column);
     setSelectedField("");
-
-    try {
-      const response = await axios.get(
-        `http://127.0.0.1:8000/unique/${column}`
-      );
-      setFieldOptions(response.data.unique_values);
-    } catch (error) {
-      console.error("Error fetching unique values:", error);
+    if(column==="department"){
+      setFieldOptions(departments)
+    }
+    else if (column==="designation"){
+      setFieldOptions(designations)
     }
   };
 
@@ -310,7 +299,6 @@ export default function Dashboard() {
       setData(originalData);
       return;
     }
-
     try {
       const response = await axios.get(
         `http://127.0.0.1:8000/filter/${filterBy}/${value}`
@@ -468,6 +456,7 @@ export default function Dashboard() {
                   ? handleFieldSelection(e.target.value)
                   : removeFilters()
               }
+              value={selectedField}
               className="border-2 border-gray-500  hover:bg-gray-200 rounded-lg px-3 py-2 mt-6 ml-6 p-4"
             >
               <option value=""> All</option>
