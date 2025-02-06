@@ -65,7 +65,7 @@ async def tableData():
     cache_key = "all_items"
     cache_exists = await redis_client.exists(cache_key)
     
-    #Cache Hit
+    # Cache Hit
     if cache_exists:
         print("Source: Redis")
         
@@ -75,17 +75,17 @@ async def tableData():
         # Convert from Redis byte format to a proper dictionary
         formatted_items = {k: json.loads(v) for k, v in cached_items.items()}
 
-        
-        return list(formatted_items.values())  # Return users as a list
+        # Return users as a list
+        return list(formatted_items.values())  
 
-    # Cache Miss Fetch from MongoDB
+    # Cache Miss
     tdata = list(users_collection.find({}, {"_id": 0}))  # Exclude _id
 
     # Store each user in Redis Hash
     for user in tdata:
-        username = user.get("username")  # Assuming username is unique
+        username = user.get("username")
         if username:
-            await redis_client.hset(cache_key, username, json.dumps(user))  # Store each user in Hash
+            await redis_client.hset(cache_key, username, json.dumps(user)) 
 
     return tdata 
 
@@ -185,7 +185,6 @@ def convert_to_datetime(value):
 #UPDATE CACHE
 async def update_user_in_hash_cache(cache_key: str, row_id: str, update_dict: dict):
 
-    # Fetch the existing user data from the Redis Hash
     existing_data = await redis_client.hget(cache_key, row_id)
 
     if not existing_data:
@@ -207,9 +206,9 @@ async def update_user_in_hash_cache(cache_key: str, row_id: str, update_dict: di
     existing_order = await redis_client.lrange(list_key, 0, -1)
 
     if row_id not in existing_order:
-        await redis_client.rpush(list_key, row_id)  # Add to order list if not present
+        await redis_client.rpush(list_key, row_id) 
 
-    print(f"User {row_id} updated in {cache_key} and order preserved")
+    print(f"User {row_id} updated in {cache_key}")
 
 
 
@@ -316,7 +315,7 @@ async def update_user(row_id: str, updated_data: DataModel, current: str = Query
         action=action_string  
     )
 
-    # Insert the change log into the `changes_collection`
+    # Insert the change log
     audit_collection.insert_one(change_log.dict())
 
     print("Return message")
@@ -378,7 +377,7 @@ async def create_user(user: DataModel, current: str = Header(...)):
         action=f"Added User {user_data['username']}"
     )
 
-    # Insert the change log into the changes collection
+    # Insert the audit log
     audit_collection.insert_one(audit_log.dict())
 
     return {"message": "User added successfully!", "newUser": new_user}
