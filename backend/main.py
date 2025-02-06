@@ -57,63 +57,9 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer", "username": payload["username"], "role": payload["role"], "name":payload["name"]}
 
  
-#REFRESH CACHE FUNCTION
-# async def refresh_cache(cache_key,collection):
-#     try:
-#         # Delete the existing cache
-#         await redis_client.delete(cache_key)
-#         print(f"Cache key '{cache_key}' deleted.")
-
-#         # Fetch fresh data from the database
-#         tdata = list(collection.find({}, {"_id": 0}))
-
-#         # Store the new data in Redis
-#         await redis_client.set(cache_key, json.dumps(tdata))
-#         print(f"Cache key '{cache_key}' refreshed with new data.")
-
-#         return {"message": "Cache refreshed successfully."}
-
-#     except Exception as e:
-#         print("Error refreshing cache:", e)
-#         return {"error": str(e)}
-    
 
 #API TO GET TABLE DATA WITHOUT SORTING
 @app.get("/tabledata")
-# async def tableData():
-
-#     cache_key = "all_items"
-#     order_key = f"{cache_key}:order"  # Separate list to store order
-#     cache_exists = await redis_client.exists(cache_key)
-    
-#     # Cache Hit
-#     if cache_exists:
-#         print("Source: Redis")
-        
-#         # Fetch ordered list of keys
-#         ordered_keys = await redis_client.lrange(order_key, 0, -1)
-
-#         # Fetch users in the correct order
-#         users = []
-#         for key in ordered_keys:
-#             user_data = await redis_client.hget(cache_key, key)
-#             if user_data:
-#                 users.append(json.loads(user_data))
-
-#         return users  # Return users in the correct MongoDB order
-
-#     # Cache Miss → Fetch from MongoDB
-#     tdata = list(users_collection.find({}, {"_id": 0}))  # Exclude `_id`
-
-#     # Store each user in Redis Hash and track order
-#     for user in tdata:
-#         username = user.get("username")  # Assuming `username` is unique
-#         if username:
-#             await redis_client.hset(cache_key, username, json.dumps(user))  # Store each user in Hash
-#             await redis_client.rpush(order_key, username)  # Maintain order in a Redis list
-
-#     return tdata 
-
 async def tableData():
     
     cache_key = "all_items"
@@ -132,7 +78,7 @@ async def tableData():
         
         return list(formatted_items.values())  # Return users as a list
 
-    # Cache Miss → Fetch from MongoDB
+    # Cache Miss Fetch from MongoDB
     tdata = list(users_collection.find({}, {"_id": 0}))  # Exclude _id
 
     # Store each user in Redis Hash
@@ -147,41 +93,13 @@ async def tableData():
 #API TO GET AUDIT TABLE DATA
 @app.get("/audittabledata")
 async def audittableData():
-    # """Fetch audit items from Redis while maintaining MongoDB order"""
-
-    # cache_key = "audit_items"  # Redis hash key storing audit records
-    # order_key = f"{cache_key}:order"  # Separate list to store order
-    # cache_exists = await redis_client.exists(cache_key)
-
-    # # Cache Hit
-    # if cache_exists:
-    #     print("Source: Redis")
-        
-    #     # Fetch ordered list of keys
-    #     ordered_keys = await redis_client.lrange(order_key, 0, -1)
-
-    #     # Fetch audit records in the correct order
-    #     audit_records = []
-    #     for key in ordered_keys:
-    #         audit_data = await redis_client.hget(cache_key, key)
-    #         if audit_data:
-    #             audit_records.append(json.loads(audit_data))
-
-    #     return audit_records  # Return records in MongoDB order
-
-    # Cache Miss → Fetch from MongoDB
+    
     tdata = list(audit_collection.find({}, {"_id": 0}))  # Exclude `_id`
 
     # Convert timestamp to ISO format before storing
     for t in tdata:
         if "timestamp" in t and isinstance(t["timestamp"], datetime):
             t["timestamp"] = t["timestamp"].isoformat()
-
-    # # Store each audit record in Redis Hash and track order
-    # for audit in tdata:
-    #     audit_id = str(audit.get("audit_id", audit.get("timestamp", "unknown")))  # Use audit_id or timestamp as key
-    #     await redis_client.hset(cache_key, audit_id, json.dumps(audit))  # Store each audit in Hash
-    #     await redis_client.rpush(order_key, audit_id)  # Maintain order in a Redis list
 
     print("Source: DB always")
     return tdata
@@ -195,16 +113,6 @@ def check_column(column):
     if column not in ["department", "designation"]:
         raise HTTPException(status_code=400, detail="Invalid column name")
     
-    
-#API TO GET THE UNIQUE VALUES AS PER THE COLUMN SELECTED
-# @app.get("/unique/{column}")
-# async def optionValues(column: str):
-    
-#     check_column(column)
-  
-#     unique_values = users_collection.distinct(column) 
-
-#     return {"column": column, "unique_values": unique_values}
 
 @app.get("/unique/{column}")
 async def optionValues(column: str):
@@ -362,7 +270,7 @@ async def delete_user_from_redis(cache_key: str, username: str):
 
 
 
-#API TO EDIT
+#API TO EDIT USER
 @app.put("/update/{row_id}")
 async def update_user(row_id: str, updated_data: DataModel, current: str = Query(...)):
     # Fetch the original row before updating
@@ -396,7 +304,7 @@ async def update_user(row_id: str, updated_data: DataModel, current: str = Query
     
     # Update the cache
     await update_user_in_hash_cache("all_items", row_id, update_dict)
-    # await refresh_cache("all_items",users_collection) 
+   
     
     # Prepare change log with formatted action
     action_string = f"Updated User {row_id}: " + ", ".join(changes_made)
@@ -411,10 +319,6 @@ async def update_user(row_id: str, updated_data: DataModel, current: str = Query
     # Insert the change log into the `changes_collection`
     audit_collection.insert_one(change_log.dict())
 
-    # Update Cache
-    # await add_new_user_to_redis("audit_items", change_log.dict())
-    # await refresh_cache("audit_items",audit_collection) 
-
     print("Return message")
     return {"message": "Row updated successfully", "changes": changes_made}
 
@@ -423,7 +327,7 @@ def get_user_by_username(username: str):
     return user
 
 
-#API TO ADD
+#API TO ADD USER
 @app.post("/add", status_code=status.HTTP_201_CREATED)
 async def create_user(user: DataModel, current: str = Header(...)):
     print("API Endpoint Hit!")  
@@ -466,7 +370,6 @@ async def create_user(user: DataModel, current: str = Header(...)):
 
     # ADD TO CACHE
     await add_new_user_to_redis("all_items", new_user)
-    # await refresh_cache("all_items",users_collection) 
 
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -478,15 +381,11 @@ async def create_user(user: DataModel, current: str = Header(...)):
     # Insert the change log into the changes collection
     audit_collection.insert_one(audit_log.dict())
 
-    #update cache
-    # await refresh_cache("audit_items",audit_collection) 
-    # await add_new_user_to_redis("audit_items", audit_log.dict())
-
     return {"message": "User added successfully!", "newUser": new_user}
-    # return {"username": user.username, "role": user.role}
 
 
-#API TO DELETE
+
+#API TO DELETE USER
 @app.delete("/delete/{row_id}")
 async def delete_row(row_id: str, current: str = Header(...)):
 
@@ -497,8 +396,9 @@ async def delete_row(row_id: str, current: str = Header(...)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Row not found")
     
+    #Update Cache
     await delete_user_from_redis("all_items",row_id)
-    # await refresh_cache("all_items",users_collection) 
+
     
     audit_log = AuditModel(
         timestamp=datetime.utcnow(), 
@@ -506,11 +406,11 @@ async def delete_row(row_id: str, current: str = Header(...)):
         userchanged= f"User {row_id}",  
         action=f"Deleted User {row_id}"
     )
+
+    #add to audits
     audit_collection.insert_one(audit_log.dict())
 
-    # await add_new_user_to_redis("audit_items", audit_log.dict())
-    # await refresh_cache("audit_items",audit_collection) 
-    
+
     return {"message": "Row deleted successfully"}
 
 
