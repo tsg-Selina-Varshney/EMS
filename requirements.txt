@@ -4,3 +4,4 @@ python-dotenv==1.0.0
 bcrypt==3.2.2
 python-jose==3.3.0
 uvicorn==0.22.0
+passlib==1.7.4
