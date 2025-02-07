@@ -25,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
+#hello
 @app.get("/")
 def read_root():
     return "hello world"
