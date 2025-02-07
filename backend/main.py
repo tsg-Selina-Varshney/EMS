@@ -23,6 +23,10 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
+@app.get("/")
+def read_root():
+    return "hello world"
+
 #API FOR LOGIN
 @app.post("/token", response_model=Token)
 # OAuthPasswordRequestForm is a dependency that automatically extracts username and password from the request. 
