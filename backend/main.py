@@ -4,6 +4,7 @@ from typing import List
 from fastapi import FastAPI, Depends, HTTPException, Header, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import validator
+import uvicorn
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 from database import users_collection, audit_collection, redis_client, departments_collection, designations_collection
 from models import AuditModel,Token,DataModel
@@ -26,6 +27,10 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return "hello world"
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))  # Azure assigns a port dynamically
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 #API FOR LOGIN
 @app.post("/token", response_model=Token)
