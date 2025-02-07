@@ -30,9 +30,6 @@ app.add_middleware(
 def read_root():
     return "hello world"
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Azure assigns a port dynamically
-    uvicorn.run(app, host="0.0.0.0", port=port)
 
 #API FOR LOGIN
 @app.post("/token", response_model=Token)
