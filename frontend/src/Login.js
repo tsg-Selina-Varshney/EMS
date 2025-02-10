@@ -6,9 +6,11 @@ import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from 'react-router-dom';
 import { authService } from "./services/authService";
 
+const burl = process.env.BACKEND_URL;
 
 function Login() {
 
+  
 
   const [formData, setFormData] = useState({
     username: "",
@@ -36,7 +38,7 @@ function Login() {
     const password = document.getElementById("password").value;
 
     try{
-      const response = await axios.post("http://127.0.0.1:8000/token",{
+      const response = await axios.post(`${burl}/token`,{
         username,
         password
       },{
