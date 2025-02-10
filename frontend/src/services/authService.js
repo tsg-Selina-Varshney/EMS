@@ -1,27 +1,3 @@
-// import { BehaviorSubject } from "rxjs";
-
-// class AuthService {
-  
-//   user$ = new BehaviorSubject(null);
-
- 
-//   setUser(data) {
-//     this.user$.next(data);
-//   }
-
- 
-//   getUser() {
-//     return this.user$.getValue();
-//   }
-
-  
-//   clearUser() {
-//     this.user$.next(null);
-//   }
-// }
-
-// export const authService = new AuthService();
-
 import { BehaviorSubject } from "rxjs";
 
 class AuthService {

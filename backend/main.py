@@ -37,7 +37,7 @@ def read_root():
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     # Finds the user in the database by username
     user = users_collection.find_one({"username": form_data.username})
-    print("Fetched user:", user)  
+    print("Fetched user:", user)
 
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -222,19 +222,17 @@ async def update_user_in_hash_cache(cache_key: str, row_id: str, update_dict: di
 
 # DATETIME SERIALIZATION
 def serialize_datetime(obj):
-    """Helper function to convert datetime to string before JSON serialization"""
     if isinstance(obj, datetime):
-        return obj.isoformat()  # Converts datetime to a string
+        return obj.isoformat() 
     raise TypeError("Type not serializable")
 
 
 #ADD TO CACHE
 async def add_new_user_to_redis(cache_key: str, new_user: dict):
-    """Add a new user to Redis Hash and maintain insertion order"""
 
-    order_key = f"{cache_key}:order"  # Separate list to store order
+    order_key = f"{cache_key}:order"  
 
-    # Ensure the user has a unique identifier (assumed to be `username`)
+    # Ensure the user has a unique identifier
     username = new_user.get("username")
     if not username:
         print("Error: User data must contain a 'username' field")
@@ -250,16 +248,15 @@ async def add_new_user_to_redis(cache_key: str, new_user: dict):
     existing_order = await redis_client.lrange(order_key, 0, -1)
 
     if username not in existing_order:
-        await redis_client.rpush(order_key, username)  # Append to order list
+        await redis_client.rpush(order_key, username)  
 
     print(f"New user {username} added to {cache_key} and order maintained")
 
 
 # DELETE FROM CACHE
 async def delete_user_from_redis(cache_key: str, username: str):
-    """Delete a user from Redis Hash and remove from order list"""
-
-    order_key = f"{cache_key}:order"  # Separate list to track order
+  
+    order_key = f"{cache_key}:order"  
 
     # Check if the user exists
     user_exists = await redis_client.hexists(cache_key, username)

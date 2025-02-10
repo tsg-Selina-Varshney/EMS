@@ -47,17 +47,8 @@ function Login() {
       });
       console.log("Response:", response.data);
       
-      // if (response.data.access_token) {
-        
-      //   // localStorage.setItem("token", response.data.access_token);
-      //   // localStorage.setItem("username", response.data.username);
-      //   // localStorage.setItem("role", response.data.role);
-      //   // localStorage.setItem("name", response.data.name);
-      //   navigate("/dashboard");
-      // }
 
       if (response.data.access_token) {
-        // Using a service instead of local storage
         authService.setUser({
           token: response.data.access_token,
           username: response.data.username,
@@ -71,12 +62,6 @@ function Login() {
         console.error("Authentication failed");
       }
   
-
-      // const token = response.data.access_token;
-      // localStorage.setItem("token", token);
-
-      // navigate('/dashboard');
-
     }
     catch(error){
       console.error("Error:", error.response?.data || error.message);
