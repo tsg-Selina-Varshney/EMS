@@ -5,11 +5,13 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import { authService } from "./services/authService";
-const BURL = process.env.REACT_APP_API_URL;
+const BURL = window.REACT_APP_API_URL || process.env.REACT_APP_API_URL;
+
+
 
 function Login() {
   //hi
-  console.log(BURL);
+  console.log("API URL:", BURL);
   const [formData, setFormData] = useState({
     username: "",
     password: "",
