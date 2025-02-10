@@ -57,7 +57,7 @@ function Login() {
           role: response.data.role,
           name: response.data.name,
         });
-        navigate("/dashboard"); 
+        navigate(`${burl}/dashboard`); 
       }
 
       else{
