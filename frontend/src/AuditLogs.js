@@ -4,6 +4,7 @@ import axios from "axios";
 import ClipLoader from "react-spinners/ClipLoader";
 import { authService } from "./services/authService";
 import { useNavigate } from "react-router-dom";
+const BURL = process.env.REACT_APP_API_URL;
 
 function AuditLogs() {
   const [data, setData] = useState([]);
@@ -15,7 +16,7 @@ function AuditLogs() {
 
   const fetchTableData = async () => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/audittabledata");
+      const response = await axios.get(`${BURL}/audittabledata`);
       return response.data;
     } catch (error) {
       console.error("Error fetching table data", error);
