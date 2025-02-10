@@ -12,6 +12,7 @@ import ClipLoader from "react-spinners/ClipLoader";
 import axios from "axios";
 import { authService } from "./services/authService";
 import { useNavigate } from "react-router-dom";
+const BURL = process.env.REACT_APP_API_URL;
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/unique/${column}`
+        `${BURL}/unique/${column}`
       );
       if (column === "department") {
         setDepartments(response.data.unique_values);
@@ -68,8 +69,8 @@ export default function Dashboard() {
   const fetchTableData = async (column = null, desc = false) => {
     try {
       let url = column
-        ? `http://127.0.0.1:8000/sort?column=${column}&desc=${desc}`
-        : "http://127.0.0.1:8000/tabledata";
+        ? `${BURL}/sort?column=${column}&desc=${desc}`
+        : `${BURL}/tabledata`;
       const response = await axios.get(url);
       return response.data;
     } catch (error) {
@@ -164,7 +165,7 @@ export default function Dashboard() {
         console.log("Deleting row:", row);
 
         const response = await axios.delete(
-          `http://127.0.0.1:8000/delete/${row.username}`,
+          `${BURL}/delete/${row.username}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -200,7 +201,7 @@ export default function Dashboard() {
     console.log("editRow data:", editRow);
 
     try {
-      const response = await axios.post("http://127.0.0.1:8000/add", editRow, {
+      const response = await axios.post(`${BURL}/add`, editRow, {
         headers: {
           "Content-Type": "application/json",
           current: getUsername,
@@ -245,7 +246,7 @@ export default function Dashboard() {
       console.log("Updating data for:", editRow);
 
       const response = await axios.put(
-        `http://127.0.0.1:8000/update/${editRow.username}?current=${getUsername}`,
+        `${BURL}/update/${editRow.username}?current=${getUsername}`,
         editRow
       );
 
@@ -301,7 +302,7 @@ export default function Dashboard() {
     }
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/filter/${filterBy}/${value}`
+        `${BURL}/filter/${filterBy}/${value}`
       );
       setData(response.data);
     } catch (error) {
